@@ -26,6 +26,8 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -35,6 +37,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.logging.Level;
@@ -123,6 +126,7 @@ import kirjanpito.ui.resources.Resources;
 import kirjanpito.util.AppSettings;
 import kirjanpito.util.Registry;
 import kirjanpito.util.RegistryAdapter;
+import kirjanpito.util.CSVReader;
 
 /**
  * Tositetietojen muokkausikkuna.
@@ -508,6 +512,9 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 
 		menu.add(SwingUtils.createMenuItem("Vie tiedostoon",
 				null, 'V', null, exportListener));
+
+		menu.add(SwingUtils.createMenuItem("Tuo tiedostosta",
+				null, 'Y', null, importListener));
 
 		/* Luodaan Ohje-valikko. */
 		menu = new JMenu("Ohje");
@@ -1248,6 +1255,86 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 			dialog.setVisible(true);
 			worker.execute();
 		}
+	}
+
+	/**
+	 * Tuo viennit CSV-tiedostosta.
+	 */
+	public void importCSV() {
+		AppSettings settings = AppSettings.getInstance();
+		String path = settings.getString("csv-directory", ".");
+		JFileChooser fc = new JFileChooser(path);
+		fc.setFileFilter(new FileFilter() {
+			public boolean accept(File file) {
+				return file.isDirectory() || file.getName().endsWith(".csv");
+			}
+
+			public String getDescription() {
+				return "CSV-tiedostot";
+			}
+		});
+
+		if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+			File file = fc.getSelectedFile();
+			settings.set("csv-directory",
+					file.getParentFile().getAbsolutePath());
+
+			try {
+				final CSVReader reader = new CSVReader(new FileReader(file));
+				int	oldDocumentId = -1;
+				int documentId;
+				String[] fieldArray = reader.readLine();
+				while (fieldArray != null) {
+					try {
+						documentId = Integer.parseInt(fieldArray[0]);
+					} catch (Exception e) {
+						String message = "Tositteen numero väärää tyyppiä";
+						logger.log(Level.INFO, message, e);
+						fieldArray = reader.readLine();
+						continue;
+					}
+
+					if (documentId != oldDocumentId) {
+						oldDocumentId = documentId;
+						// Create new document
+						createDocument();
+						dateTextField.setText(fieldArray[1]);
+					}
+
+					copyCSVEntries(fieldArray);
+					pasteEntries();
+					fieldArray = reader.readLine();
+				}
+			} catch (FileNotFoundException e) {
+				return;
+			} catch (IOException e) {
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Kopioi CSV:n viennit leikepöydälle.
+	 */
+	public void copyCSVEntries(String[] fieldArray) {
+		stopEditing();
+		StringBuilder sb = new StringBuilder();
+
+		sb.append(fieldArray[2]); 	// Tilino
+		sb.append('\t');
+		sb.append(fieldArray[3]); 	// Tilinimi
+		sb.append('\t');
+		sb.append(fieldArray[4]); 	// Debit summa
+		sb.append('\t');
+		sb.append(fieldArray[5]); 	// Kredit Summa
+		sb.append('\t');
+		sb.append(""); 				// VAT
+ 		sb.append('\t');
+		sb.append(fieldArray[6]); 	// Selite
+		sb.append(System.getProperty("line.separator"));
+
+		Toolkit.getDefaultToolkit().getSystemClipboard(
+				).setContents(new StringSelection(sb.toString()), null);
 	}
 
 	/**
@@ -3041,6 +3128,13 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 	private ActionListener exportListener = new ActionListener() {
 		public void actionPerformed(ActionEvent e) {
 			export();
+		}
+	};
+
+	/* Tuo */
+	private ActionListener importListener = new ActionListener() {
+		public void actionPerformed(ActionEvent e) {
+			importCSV();
 		}
 	};
 
