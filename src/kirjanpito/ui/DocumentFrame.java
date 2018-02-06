@@ -516,6 +516,9 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 		menu.add(SwingUtils.createMenuItem("Tuo tiedostosta",
 				null, 'Y', null, importListener));
 
+		menu.add(SwingUtils.createMenuItem("Poista aiemmat tositteet",
+				null, 'Y', null, deleteAllListener));
+
 		/* Luodaan Ohje-valikko. */
 		menu = new JMenu("Ohje");
 		menu.setMnemonic('O');
@@ -1034,6 +1037,34 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 			updatePosition();
 			updateDocument();
 			updateTotalRow();
+		}
+	}
+
+	/**
+	 * Poistaa kaikki tositteet tähän tositteeseen asti.
+	 */
+	public void deleteAllDocuments() {
+		int position = model.getDocumentPosition() + 1;
+		int result = JOptionPane.showConfirmDialog(this,
+				"Haluatko varmasti poistaa kaikki tositteet tähän tositteeseen asti (" + position + ")?",
+				Kirjanpito.APP_NAME, JOptionPane.YES_NO_OPTION,
+				JOptionPane.QUESTION_MESSAGE);
+
+		if (result == JOptionPane.YES_OPTION) {
+			for (int i = 0; i < position; i++) {
+				try {
+					model.deleteDocument();
+				}
+				catch (DataAccessException e) {
+					String message = "Tositteen poistaminen epäonnistui";
+					logger.log(Level.SEVERE, message, e);
+					SwingUtils.showDataAccessErrorMessage(this, e, message);
+				}
+
+				updatePosition();
+				updateDocument();
+				updateTotalRow();
+			}
 		}
 	}
 
@@ -3135,6 +3166,13 @@ public class DocumentFrame extends JFrame implements AccountSelectionListener {
 	private ActionListener importListener = new ActionListener() {
 		public void actionPerformed(ActionEvent e) {
 			importCSV();
+		}
+	};
+
+	/* Poista kaikki */
+	private ActionListener deleteAllListener = new ActionListener() {
+		public void actionPerformed(ActionEvent e) {
+			deleteAllDocuments();
 		}
 	};
 
